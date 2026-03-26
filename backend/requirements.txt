@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+pydantic
+pydantic-settings
+supabase
+litellm
+openai
+python-dotenv
+playwright
+reportlab
+aiogram
+httpx
+pytest
+pytest-asyncio
