@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from .api.agents import router as agents_router
 from .api.tests import router as tests_router
 from .api.reports import router as reports_router
@@ -12,6 +13,15 @@ app = FastAPI(
     title="AI Multi-factor Testing Platform API",
     description="Backend for AI-driven website testing using Playwright and LiteLLM",
     version="0.1.0"
+)
+
+# Настройка CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Подключение роутеров
