@@ -5,10 +5,14 @@ from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 from urllib.parse import urljoin, urlparse
 
 class PlaywrightClient:
-    def __init__(self, video_dir: str = "videos"):
+    def __init__(self, video_dir: str = "/tmp/videos"):
         self.video_dir = video_dir
-        if not os.path.exists(self.video_dir):
-            os.makedirs(self.video_dir)
+        self.screenshot_dir = "/tmp/screenshots"
+        
+        # Создаем директории в /tmp
+        for d in [self.video_dir, self.screenshot_dir]:
+            if not os.path.exists(d):
+                os.makedirs(d, exist_ok=True)
 
     async def get_page_info(self, url: str) -> Dict[str, Any]:
         """Экспресс-тест: статус-код и скриншот."""
@@ -19,10 +23,7 @@ class PlaywrightClient:
             response = await page.goto(url)
             status = response.status
             
-            screenshot_path = f"screenshots/express_{int(asyncio.get_event_loop().time())}.png"
-            if not os.path.exists("screenshots"):
-                os.makedirs("screenshots")
-                
+            screenshot_path = os.path.join(self.screenshot_dir, f"express_{int(asyncio.get_event_loop().time())}.png")
             await page.screenshot(path=screenshot_path)
             await browser.close()
             
@@ -41,7 +42,7 @@ class PlaywrightClient:
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
             
-            # Настройка контекста с записью видео
+            # Настройка контекста с записью видео в /tmp
             context = await browser.new_context(
                 record_video_dir=self.video_dir,
                 record_video_size={"width": 1280, "height": 720}
@@ -61,11 +62,9 @@ class PlaywrightClient:
                     response = await page.goto(current_url, wait_until="networkidle")
                     status = response.status
                     
-                    # Скриншот для анализа
+                    # Скриншот для анализа в /tmp
                     screenshot_name = f"deep_{count}_{int(asyncio.get_event_loop().time())}.png"
-                    screenshot_path = os.path.join("screenshots", screenshot_name)
-                    if not os.path.exists("screenshots"):
-                        os.makedirs("screenshots")
+                    screenshot_path = os.path.join(self.screenshot_dir, screenshot_name)
                     await page.screenshot(path=screenshot_path)
                     
                     # Поиск новых ссылок на той же области
