@@ -50,12 +50,12 @@ class AgentService:
         """
         Основная логика: выполняет запрос через LiteLLM.
         Приоритет отдается конфигурации из запроса (ai_config).
-        Если ai_config.api_key и ip_url предоставлены, запрос выполняется БЕЗ обращения к Supabase.
+        Если ai_config.api_key и base_url предоставлены, запрос выполняется БЕЗ обращения к Supabase.
         """
         # Если в запросе переданы ВСЕ необходимые данные для автономной работы
-        if request.ai_config and request.ai_config.api_key and request.ai_config.ip_url:
+        if request.ai_config and request.ai_config.api_key and request.ai_config.base_url:
             api_key = request.ai_config.api_key
-            base_url = request.ai_config.ip_url
+            base_url = request.ai_config.base_url
             model_name = request.ai_config.model_name or "gpt-3.5-turbo"
             # Для автономного режима используем тип из запроса или GENERAL
             model_type = request.ai_config.category or ModelType.GENERAL
@@ -66,7 +66,7 @@ class AgentService:
                 raise Exception(f"Агент {agent.name} деактивирован.")
             
             api_key = (request.ai_config.api_key if request.ai_config else None) or agent.api_key
-            base_url = (request.ai_config.ip_url if request.ai_config else None) or agent.base_url
+            base_url = (request.ai_config.base_url if request.ai_config else None) or agent.base_url
             model_name = (request.ai_config.model_name if request.ai_config else None) or agent.model_name
             model_type = agent.model_type
 

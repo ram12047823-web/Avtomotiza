@@ -1,13 +1,14 @@
+import os
+from dotenv import load_dotenv
+
+# Загрузка переменных окружения ДО импорта сервисов
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .api.agents import router as agents_router
 from .api.tests import router as tests_router
 from .api.reports import router as reports_router
-from dotenv import load_dotenv
-import os
-
-# Загрузка переменных окружения из .env
-load_dotenv()
 
 app = FastAPI(
     title="AI Multi-factor Testing Platform API",
@@ -15,7 +16,7 @@ app = FastAPI(
     version="0.1.0"
 )
 
-# Настройка CORS
+# Настройка CORS сразу после создания app
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

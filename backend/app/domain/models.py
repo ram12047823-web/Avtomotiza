@@ -42,7 +42,7 @@ class AIAgentCreate(BaseModel):
 
 class AIConfig(BaseModel):
     category: ModelType
-    ip_url: str
+    base_url: str  # IP адрес или URL модели
     api_key: Optional[str] = None
     model_name: Optional[str] = "gpt-3.5-turbo"
 
