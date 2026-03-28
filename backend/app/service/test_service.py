@@ -5,6 +5,7 @@ from uuid import UUID
 from supabase import create_client, Client
 from ..domain.models import TestTask, TestResult, TestLevel, TestStatus, TestIssue, ModelType, AIRequest, AIConfig
 from ..infrastructure.playwright_client import playwright_client
+from ..infrastructure.storage_client import storage_client
 from ..service.agent_service import agent_service
 
 class TestService:
@@ -45,6 +46,9 @@ class TestService:
         """Логика экспресс-теста."""
         info = await playwright_client.get_page_info(test_task.url)
         
+        # Загрузка скриншота в Storage
+        screenshot_url = await storage_client.upload_media(info['screenshot_path'], str(test_task.id))
+        
         issues = []
         if ai_agent_id:
             # Получаем агента, чтобы узнать его категорию
@@ -64,7 +68,7 @@ class TestService:
             issues.append(TestIssue(
                 description=ai_response.content,
                 recommendation="Следуйте советам ИИ выше.",
-                screenshot_url=info['screenshot_path']
+                screenshot_url=screenshot_url or info['screenshot_path']
             ))
 
         result = TestResult(
@@ -85,6 +89,10 @@ class TestService:
         config = next((c for c in ai_configs if agent and c.category == agent.model_type), None) if agent else None
 
         for res in results:
+            # Загрузка скриншота и видео в Storage
+            screenshot_url = await storage_client.upload_media(res['screenshot_path'], str(test_task.id))
+            video_url = await storage_client.upload_media(res['video_path'], str(test_task.id)) if res.get('video_path') else None
+
             issues = []
             if ai_agent_id:
                 ai_response = await agent_service.execute_agent_request(AIRequest(
@@ -96,11 +104,10 @@ class TestService:
                 
                 # Если ИИ нашел ошибку (логика может быть сложнее)
                 if "ошибка" in ai_response.content.lower() or "проблема" in ai_response.content.lower():
-                    # Сохранение скриншота в Storage (реализуем позже)
                     issues.append(TestIssue(
                         description=ai_response.content,
                         recommendation="Исправьте найденные ИИ недочеты.",
-                        screenshot_url=res['screenshot_path']
+                        screenshot_url=screenshot_url or res['screenshot_path']
                     ))
 
             result = TestResult(
@@ -108,7 +115,7 @@ class TestService:
                 url=res['url'],
                 status_code=res['status_code'],
                 issues=issues,
-                video_url=res.get('video_path')
+                video_url=video_url or res.get('video_path')
             )
             
             self.supabase.table("test_results").insert(result.model_dump(exclude={"id", "created_at"})).execute()
