@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from uuid import UUID
 from datetime import datetime
 
@@ -33,6 +33,17 @@ class AIAgent(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
+    @field_validator('model_type', mode='before')
+    @classmethod
+    def normalize_model_type(cls, v):
+        if isinstance(v, str):
+            # Переводим в Title Case (например, performance -> Performance)
+            # Если это UX, оставляем в верхнем регистре
+            v_title = v.strip().title()
+            if v_title == "Ux": return "UX"
+            return v_title
+        return v
+
 class AIAgentCreate(BaseModel):
     name: str
     base_url: str
@@ -40,11 +51,32 @@ class AIAgentCreate(BaseModel):
     model_type: ModelType
     model_name: str = "gpt-3.5-turbo"
 
+    @field_validator('model_type', mode='before')
+    @classmethod
+    def normalize_model_type(cls, v):
+        if isinstance(v, str):
+            v_title = v.strip().title()
+            if v_title == "Ux": return "UX"
+            return v_title
+        return v
+
 class AIConfig(BaseModel):
     category: ModelType
-    ip_url: str  # IP адрес или URL модели (Base URL)
+    ip_url: str = Field(..., alias="endpoint")  # Поддержка старого формата 'endpoint'
     api_key: Optional[str] = None
     model_name: Optional[str] = "gpt-3.5-turbo"
+
+    class Config:
+        populate_by_name = True
+
+    @field_validator('category', mode='before')
+    @classmethod
+    def normalize_category(cls, v):
+        if isinstance(v, str):
+            v_title = v.strip().title()
+            if v_title == "Ux": return "UX"
+            return v_title
+        return v
 
 class ScanRequest(BaseModel):
     url: str
