@@ -40,9 +40,15 @@ class AIAgentCreate(BaseModel):
     model_type: ModelType
     model_name: str = "gpt-3.5-turbo"
 
+class AIConfig(BaseModel):
+    api_key: str
+    model_name: Optional[str] = "gpt-3.5-turbo"
+    base_url: Optional[str] = None
+
 class AIRequest(BaseModel):
     agent_id: UUID
     prompt: str
+    ai_config: Optional[AIConfig] = None
     max_tokens: Optional[int] = 1000
     temperature: float = 0.7
 

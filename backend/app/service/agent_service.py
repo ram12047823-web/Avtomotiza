@@ -38,17 +38,26 @@ class AgentService:
     async def execute_agent_request(self, request: AIRequest) -> AIResponse:
         """
         Основная логика: получает данные об агенте из БД и делает запрос через LiteLLM.
+        Приоритет отдается конфигурации из запроса (ai_config).
         """
         agent = await self.get_agent(request.agent_id)
         
         if not agent.is_active:
             raise Exception(f"Агент {agent.name} деактивирован.")
 
+        # Определяем параметры: приоритет у request.ai_config, затем данные из БД
+        api_key = request.ai_config.api_key if request.ai_config else agent.api_key
+        model_name = request.ai_config.model_name if (request.ai_config and request.ai_config.model_name) else agent.model_name
+        base_url = request.ai_config.base_url if (request.ai_config and request.ai_config.base_url) else agent.base_url
+
+        if not api_key:
+            raise Exception("API Key не предоставлен ни в запросе, ни в конфигурации агента.")
+
         # Вызов инфраструктурного слоя для работы с LiteLLM
         return await ai_client.complete(
-            model_name=agent.model_name,
-            base_url=agent.base_url,
-            api_key=agent.api_key,
+            model_name=model_name,
+            base_url=base_url,
+            api_key=api_key,
             model_type=agent.model_type,
             user_prompt=request.prompt,
             temperature=request.temperature,
