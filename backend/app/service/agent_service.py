@@ -46,9 +46,9 @@ class AgentService:
             raise Exception(f"Агент {agent.name} деактивирован.")
 
         # Определяем параметры: приоритет у request.ai_config, затем данные из БД
-        api_key = request.ai_config.api_key if request.ai_config else agent.api_key
+        api_key = request.ai_config.api_key if (request.ai_config and request.ai_config.api_key) else agent.api_key
         model_name = request.ai_config.model_name if (request.ai_config and request.ai_config.model_name) else agent.model_name
-        base_url = request.ai_config.base_url if (request.ai_config and request.ai_config.base_url) else agent.base_url
+        base_url = request.ai_config.ip_url if (request.ai_config and request.ai_config.ip_url) else agent.base_url
 
         if not api_key:
             raise Exception("API Key не предоставлен ни в запросе, ни в конфигурации агента.")

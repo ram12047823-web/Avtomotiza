@@ -1,28 +1,31 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from typing import List, Optional
 from uuid import UUID
-from ..domain.models import TestTask, TestLevel, TestResult, AIConfig
+from ..domain.models import TestTask, TestLevel, TestResult, AIConfig, ScanRequest
 from ..service.test_service import test_service
 
 router = APIRouter(prefix="/tests", tags=["Testing"])
 
 @router.post("/run", response_model=TestTask)
 async def run_test(
-    url: str, 
-    level: TestLevel, 
+    request: ScanRequest,
     background_tasks: BackgroundTasks,
-    ai_agent_id: Optional[UUID] = None,
-    ai_config: Optional[AIConfig] = None
+    ai_agent_id: Optional[UUID] = None
 ):
     """
     Запустить новый тест для указанного URL.
     - Экспресс: Статус-коды + скриншот главной.
     - Глубокий: Полный crawler + видео.
-    - ai_config: Передается для автономной работы воркера (api_key, model_name, base_url).
+    - ScanRequest: Содержит URL, уровень и список ai_configs для автономной работы.
     """
     try:
         # Запуск теста в фоне, чтобы не блокировать API
-        test_task = await test_service.run_test(url, level, ai_agent_id, ai_config)
+        test_task = await test_service.run_test(
+            request.url, 
+            request.level, 
+            ai_agent_id, 
+            request.ai_configs
+        )
         return test_task
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

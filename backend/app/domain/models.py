@@ -41,9 +41,15 @@ class AIAgentCreate(BaseModel):
     model_name: str = "gpt-3.5-turbo"
 
 class AIConfig(BaseModel):
-    api_key: str
+    category: ModelType
+    ip_url: str
+    api_key: Optional[str] = None
     model_name: Optional[str] = "gpt-3.5-turbo"
-    base_url: Optional[str] = None
+
+class ScanRequest(BaseModel):
+    url: str
+    level: TestLevel
+    ai_configs: List[AIConfig]
 
 class AIRequest(BaseModel):
     agent_id: UUID
