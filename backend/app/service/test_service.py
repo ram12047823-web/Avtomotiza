@@ -68,30 +68,49 @@ class TestService:
         """Логика экспресс-теста."""
         info = await playwright_client.get_page_info(test_task.url)
         
-        # Загрузка скриншота в Storage
-        screenshot_url = await storage_client.upload_media(info['screenshot_path'], str(test_task.id))
+        # Загрузка скриншота в Storage (если клиент инициализирован)
+        screenshot_url = None
+        if storage_client.supabase:
+            screenshot_url = await storage_client.upload_media(info['screenshot_path'], str(test_task.id))
         
         issues = []
-        if ai_agent_id:
-            # Получаем агента, чтобы узнать его категорию
-            agent = await agent_service.get_agent(ai_agent_id)
-            
-            # Ищем конфиг для этой категории
-            config = next((c for c in ai_configs if c.category == agent.model_type), None)
+        # Если предоставлены конфиги, используем их
+        if ai_configs:
+            for config in ai_configs:
+                try:
+                    # Создаем фиктивный запрос для автономного выполнения
+                    ai_response = await agent_service.execute_agent_request(AIRequest(
+                        agent_id=UUID(int=0), # Не используется в автономном режиме
+                        prompt=f"Проанализируй сайт {test_task.url}. Статус-код: {info['status_code']}. "
+                               f"Найди критические ошибки на главной странице.",
+                        ai_config=config
+                    ))
+                    
+                    issues.append(TestIssue(
+                        description=ai_response.content,
+                        recommendation=f"Рекомендации от ИИ ({config.category}): Следуйте советам выше.",
+                        screenshot_url=screenshot_url or info['screenshot_path']
+                    ))
+                except Exception as e:
+                    print(f"Error executing autonomous AI request for {config.category}: {e}")
 
-            ai_response = await agent_service.execute_agent_request(AIRequest(
-                agent_id=ai_agent_id,
-                prompt=f"Проанализируй сайт {test_task.url}. Статус-код: {info['status_code']}. "
-                       f"Найди критические ошибки на главной странице.",
-                ai_config=config
-            ))
-            
-            # Парсинг ответа ИИ (упрощенно)
-            issues.append(TestIssue(
-                description=ai_response.content,
-                recommendation="Следуйте советам ИИ выше.",
-                screenshot_url=screenshot_url or info['screenshot_path']
-            ))
+        # Если конфигов нет, но есть agent_id и база доступна, используем старую логику
+        elif ai_agent_id and self.supabase:
+            try:
+                agent = await agent_service.get_agent(ai_agent_id)
+                ai_response = await agent_service.execute_agent_request(AIRequest(
+                    agent_id=ai_agent_id,
+                    prompt=f"Проанализируй сайт {test_task.url}. Статус-код: {info['status_code']}. "
+                           f"Найди критические ошибки на главной странице."
+                ))
+                
+                issues.append(TestIssue(
+                    description=ai_response.content,
+                    recommendation="Следуйте советам ИИ выше.",
+                    screenshot_url=screenshot_url or info['screenshot_path']
+                ))
+            except Exception as e:
+                print(f"Error executing DB-based AI request: {e}")
 
         result = TestResult(
             test_id=test_task.id,
@@ -110,31 +129,52 @@ class TestService:
         """Логика глубокого теста с краулером."""
         results = await playwright_client.crawl_and_test(test_task.url, max_pages=5)
         
-        # Получаем агента заранее, если он есть
-        agent = await agent_service.get_agent(ai_agent_id) if ai_agent_id else None
-        config = next((c for c in ai_configs if agent and c.category == agent.model_type), None) if agent else None
-
         for res in results:
-            # Загрузка скриншота и видео в Storage
-            screenshot_url = await storage_client.upload_media(res['screenshot_path'], str(test_task.id))
-            video_url = await storage_client.upload_media(res['video_path'], str(test_task.id)) if res.get('video_path') else None
+            # Загрузка скриншота и видео в Storage (если клиент инициализирован)
+            screenshot_url = None
+            video_url = None
+            if storage_client.supabase:
+                screenshot_url = await storage_client.upload_media(res['screenshot_path'], str(test_task.id))
+                video_url = await storage_client.upload_media(res['video_path'], str(test_task.id)) if res.get('video_path') else None
 
             issues = []
-            if ai_agent_id:
-                ai_response = await agent_service.execute_agent_request(AIRequest(
-                    agent_id=ai_agent_id,
-                    prompt=f"Проанализируй страницу {res['url']}. Статус-код: {res['status_code']}. "
-                           f"Найди ошибки UX/UI или безопасности.",
-                    ai_config=config
-                ))
-                
-                # Если ИИ нашел ошибку (логика может быть сложнее)
-                if "ошибка" in ai_response.content.lower() or "проблема" in ai_response.content.lower():
-                    issues.append(TestIssue(
-                        description=ai_response.content,
-                        recommendation="Исправьте найденные ИИ недочеты.",
-                        screenshot_url=screenshot_url or res['screenshot_path']
+            # Если предоставлены конфиги, используем их для анализа каждой страницы
+            if ai_configs:
+                for config in ai_configs:
+                    try:
+                        ai_response = await agent_service.execute_agent_request(AIRequest(
+                            agent_id=UUID(int=0),
+                            prompt=f"Проанализируй страницу {res['url']}. Статус-код: {res['status_code']}. "
+                                   f"Найди ошибки UX/UI или безопасности.",
+                            ai_config=config
+                        ))
+                        
+                        if "ошибка" in ai_response.content.lower() or "проблема" in ai_response.content.lower():
+                            issues.append(TestIssue(
+                                description=ai_response.content,
+                                recommendation=f"Исправьте найденные ИИ ({config.category}) недочеты.",
+                                screenshot_url=screenshot_url or res['screenshot_path']
+                            ))
+                    except Exception as e:
+                        print(f"Error executing autonomous deep AI request for {config.category}: {e}")
+
+            # Если конфигов нет, но есть agent_id и база доступна
+            elif ai_agent_id and self.supabase:
+                try:
+                    ai_response = await agent_service.execute_agent_request(AIRequest(
+                        agent_id=ai_agent_id,
+                        prompt=f"Проанализируй страницу {res['url']}. Статус-код: {res['status_code']}. "
+                               f"Найди ошибки UX/UI или безопасности."
                     ))
+                    
+                    if "ошибка" in ai_response.content.lower() or "проблема" in ai_response.content.lower():
+                        issues.append(TestIssue(
+                            description=ai_response.content,
+                            recommendation="Исправьте найденные ИИ недочеты.",
+                            screenshot_url=screenshot_url or res['screenshot_path']
+                        ))
+                except Exception as e:
+                    print(f"Error executing DB-based deep AI request: {e}")
 
             result = TestResult(
                 test_id=test_task.id,
