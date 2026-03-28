@@ -6,7 +6,7 @@ from ..service.test_service import test_service
 
 router = APIRouter(prefix="/tests", tags=["Testing"])
 
-@router.post("/run", response_model=TestTask)
+@router.post("/run-scan", response_model=TestTask)
 async def run_test(
     request: ScanRequest,
     background_tasks: BackgroundTasks,
@@ -16,7 +16,7 @@ async def run_test(
     Запустить новый тест для указанного URL.
     - Экспресс: Статус-коды + скриншот главной.
     - Глубокий: Полный crawler + видео.
-    - ScanRequest: Содержит URL, уровень и список ai_configs для автономной работы.
+    - ScanRequest: Содержит URL, уровень, список ai_configs и опциональный api_key.
     """
     try:
         # Запуск теста в фоне, чтобы не блокировать API

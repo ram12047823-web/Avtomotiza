@@ -50,6 +50,7 @@ class ScanRequest(BaseModel):
     url: str
     level: TestLevel
     ai_configs: List[AIConfig]
+    api_key: Optional[str] = None
 
 class AIRequest(BaseModel):
     agent_id: UUID
