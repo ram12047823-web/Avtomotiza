@@ -49,15 +49,21 @@ class AIConfig(BaseModel):
 class ScanRequest(BaseModel):
     url: str
     level: TestLevel
-    ai_configs: List[AIConfig]
+    ai_configs: List[AIConfig] = Field(..., alias="ai_config")
     api_key: Optional[str] = None
+
+    class Config:
+        populate_by_name = True
 
 class AIRequest(BaseModel):
     agent_id: UUID
     prompt: str
-    ai_config: Optional[AIConfig] = None
+    ai_config: Optional[AIConfig] = Field(None, alias="ai_configs")
     max_tokens: Optional[int] = 1000
     temperature: float = 0.7
+
+    class Config:
+        populate_by_name = True
 
 class AIResponse(BaseModel):
     content: str
