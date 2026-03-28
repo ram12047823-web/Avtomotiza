@@ -61,7 +61,7 @@ class AIAgentCreate(BaseModel):
         return v
 
 class AIConfig(BaseModel):
-    category: ModelType
+    category: str
     ip_url: str = Field(..., alias="endpoint")  # Поддержка старого формата 'endpoint'
     api_key: Optional[str] = None
     model_name: Optional[str] = "gpt-3.5-turbo"
@@ -73,14 +73,20 @@ class AIConfig(BaseModel):
     @classmethod
     def normalize_category(cls, v):
         if isinstance(v, str):
-            v_title = v.strip().title()
-            if v_title == "Ux": return "UX"
-            return v_title
+            v_lower = v.strip().lower()
+            # Маппинг специфичных названий
+            if v_lower in ['usability', 'ux']: return "UX"
+            if v_lower in ['compatibility', 'general']: return "General"
+            if v_lower == 'security': return "Security"
+            if v_lower == 'performance': return "Performance"
+            if v_lower == 'accessibility': return "Accessibility"
+            # По умолчанию приводим к Title Case
+            return v.strip().title()
         return v
 
 class ScanRequest(BaseModel):
     url: str
-    level: TestLevel
+    level: TestLevel = Field(..., alias="mode")
     ai_configs: List[AIConfig] = Field(..., alias="ai_config")
     api_key: Optional[str] = None
 
