@@ -13,18 +13,19 @@ class ReportService:
         supabase_url = os.getenv("SUPABASE_URL")
         supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
         
-        self.supabase = None
-        if supabase_url and supabase_key:
+        if not supabase_url or not supabase_key:
+            print("Warning: Supabase credentials not found in ReportService. DB features will be disabled.")
+            self.supabase = None
+        else:
             try:
                 self.supabase: Client = create_client(supabase_url, supabase_key)
             except Exception as e:
                 print(f"Warning: Failed to initialize Supabase client in ReportService: {e}")
-        else:
-            print("Warning: Supabase credentials not found in ReportService. DB features will be disabled.")
+                self.supabase = None
         
-        self.reports_dir = "reports"
+        self.reports_dir = "/tmp/reports"
         if not os.path.exists(self.reports_dir):
-            os.makedirs(self.reports_dir)
+            os.makedirs(self.reports_dir, exist_ok=True)
 
     async def generate_pdf_report(self, test_id: UUID) -> str:
         """Собирает данные из Supabase и генерирует PDF отчет."""
