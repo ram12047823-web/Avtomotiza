@@ -93,6 +93,16 @@ class ScanRequest(BaseModel):
     class Config:
         populate_by_name = True
 
+    @field_validator('level', mode='before')
+    @classmethod
+    def normalize_level(cls, v):
+        if isinstance(v, str):
+            v_title = v.strip().title()
+            # Валидатор нормализует регистр (например, 'standard' -> 'Standard')
+            # Pydantic затем проверит соответствие Enum TestLevel
+            return v_title
+        return v
+
 class AIRequest(BaseModel):
     agent_id: UUID
     prompt: str
