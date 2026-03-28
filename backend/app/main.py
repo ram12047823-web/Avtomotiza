@@ -26,9 +26,9 @@ app.add_middleware(
 )
 
 # Подключение роутеров
-app.include_router(agents_router, prefix="/api/agents", tags=["Agents"])
-app.include_router(tests_router, prefix="/api/tests", tags=["Tests"])
-app.include_router(reports_router, prefix="/api/reports", tags=["Reports"])
+app.include_router(agents_router, prefix="/api", tags=["Agents"])
+app.include_router(tests_router, prefix="/api", tags=["Tests"])
+app.include_router(reports_router, prefix="/api", tags=["Reports"])
 
 @app.get("/")
 async def root():

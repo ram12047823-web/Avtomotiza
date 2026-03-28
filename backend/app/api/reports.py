@@ -7,9 +7,19 @@ from ..service.notification_service import notification_service
 from ..domain.models import TestTask
 import os
 
-router = APIRouter(prefix="/reports", tags=["Reports"])
+router = APIRouter(tags=["Reports"])
 
-@router.get("/{test_id}/pdf")
+@router.get("/reports", response_model=List[dict])
+async def list_reports():
+    """Получить список всех отчетов."""
+    try:
+        # Получение данных о тестах с завершенным статусом
+        res = report_service.supabase.table("tests").select("*").eq("status", "completed").order("created_at", descending=True).execute()
+        return res.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/reports/{test_id}/pdf")
 async def download_report_pdf(test_id: UUID):
     """Генерирует и скачивает PDF отчет для теста."""
     try:
@@ -25,7 +35,7 @@ async def download_report_pdf(test_id: UUID):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/{test_id}/notify-telegram")
+@router.post("/reports/{test_id}/notify-telegram")
 async def notify_telegram(test_id: UUID, background_tasks: BackgroundTasks):
     """Отправить уведомление о завершенном тесте в Telegram."""
     try:

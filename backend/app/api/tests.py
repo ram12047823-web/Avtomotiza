@@ -4,7 +4,17 @@ from uuid import UUID
 from ..domain.models import TestTask, TestLevel, TestResult, AIConfig, ScanRequest
 from ..service.test_service import test_service
 
-router = APIRouter(prefix="/tests", tags=["Testing"])
+router = APIRouter(tags=["Testing"])
+
+@router.get("/scans", response_model=List[TestTask])
+async def list_scans():
+    """Получить список всех сканирований."""
+    try:
+        # Получение данных из Supabase
+        res = test_service.supabase.table("tests").select("*").order("created_at", descending=True).execute()
+        return [TestTask(**r) for r in res.data]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/run-scan", response_model=TestTask)
 async def run_test(
@@ -30,14 +40,22 @@ async def run_test(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/{test_id}", response_model=TestTask)
+@router.get("/scans/{test_id}", response_model=TestTask)
 async def get_test_status(test_id: UUID):
     """Получить статус теста."""
-    # Реализация через сервис получения статуса
-    pass
+    try:
+        res = test_service.supabase.table("tests").select("*").eq("id", str(test_id)).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Тест не найден")
+        return TestTask(**res.data[0])
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/{test_id}/results", response_model=List[TestResult])
+@router.get("/scans/{test_id}/results", response_model=List[TestResult])
 async def get_test_results(test_id: UUID):
     """Получить детальные результаты теста (все страницы, ошибки, ссылки на медиа)."""
-    # Реализация через сервис получения результатов
-    pass
+    try:
+        res = test_service.supabase.table("test_results").select("*").eq("test_id", str(test_id)).execute()
+        return [TestResult(**r) for r in res.data]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

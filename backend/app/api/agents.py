@@ -4,9 +4,9 @@ from uuid import UUID
 from ..domain.models import AIAgent, AIAgentCreate, AIRequest, AIResponse, ModelType
 from ..service.agent_service import agent_service
 
-router = APIRouter(prefix="/agents", tags=["AI Agents"])
+router = APIRouter(tags=["AI Agents"])
 
-@router.post("/", response_model=AIAgent)
+@router.post("/agents", response_model=AIAgent)
 async def create_agent(agent_data: AIAgentCreate):
     """
     Добавить новую ИИ-модель (агента) в систему.
@@ -17,14 +17,14 @@ async def create_agent(agent_data: AIAgentCreate):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/", response_model=List[AIAgent])
+@router.get("/agents", response_model=List[AIAgent])
 async def list_agents(model_type: Optional[ModelType] = Query(None)):
     """
     Получить список всех зарегистрированных ИИ-моделей.
     """
     return await agent_service.list_agents(model_type)
 
-@router.post("/execute", response_model=AIResponse)
+@router.post("/agents/execute", response_model=AIResponse)
 async def execute_request(request: AIRequest):
     """
     Выполнить запрос к конкретному ИИ-агенту.
@@ -35,7 +35,7 @@ async def execute_request(request: AIRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/{agent_id}", response_model=AIAgent)
+@router.get("/agents/{agent_id}", response_model=AIAgent)
 async def get_agent(agent_id: UUID):
     """
     Получить детальную информацию об агенте.
