@@ -7,19 +7,18 @@ from supabase import create_client, Client
 
 class StorageClient:
     def __init__(self):
-        self.supabase_url = os.getenv("SUPABASE_URL", "")
+        self.supabase_url = os.getenv("SUPABASE_URL")
         # Используем SERVICE_ROLE_KEY для записи в Storage
-        self.supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY", "")
+        self.supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
         
-        if not self.supabase_url or not self.supabase_key:
-            print("Warning: Supabase credentials not found in StorageClient.")
-            self.supabase = None
-        else:
+        self.supabase = None
+        if self.supabase_url and self.supabase_key:
             try:
                 self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
             except Exception as e:
-                print(f"Error initializing Supabase client in StorageClient: {e}")
-                self.supabase = None
+                print(f"Warning: Failed to initialize Supabase client in StorageClient: {e}")
+        else:
+            print("Warning: Supabase credentials not found in StorageClient. Storage features will be disabled.")
 
     async def upload_media(self, local_path: str, scan_id: str) -> Optional[str]:
         """

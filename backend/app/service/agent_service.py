@@ -8,19 +8,23 @@ import os
 class AgentService:
     def __init__(self):
         # Используем SERVICE_ROLE_KEY для административных действий
-        supabase_url = os.getenv("SUPABASE_URL", "")
-        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY", "")
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
         
-        if not supabase_url or not supabase_key:
-            print("Warning: Supabase credentials not found. API might fail.")
-            self.supabase = None
+        self.supabase = None
+        if supabase_url and supabase_key:
+            try:
+                self.supabase: Client = create_client(supabase_url, supabase_key)
+            except Exception as e:
+                print(f"Warning: Failed to initialize Supabase client: {e}")
         else:
-            self.supabase: Client = create_client(supabase_url, supabase_key)
+            print("Warning: Supabase credentials not found. DB features will be disabled.")
 
     async def create_agent(self, agent_data: AIAgentCreate) -> AIAgent:
         """Сохраняет нового ИИ-агента в Supabase."""
         if not self.supabase:
-            raise Exception("Supabase client not initialized.")
+            raise Exception("Database not available. Cannot create agent.")
+        
         response = self.supabase.table("ai_models").insert(agent_data.model_dump()).execute()
         if not response.data:
             raise Exception("Не удалось создать агента в базе данных.")
@@ -29,7 +33,8 @@ class AgentService:
     async def get_agent(self, agent_id: UUID) -> AIAgent:
         """Получает данные об агенте по ID."""
         if not self.supabase:
-            raise Exception("Supabase client not initialized.")
+            raise Exception("Database not available. Cannot fetch agent.")
+            
         response = self.supabase.table("ai_models").select("*").eq("id", str(agent_id)).execute()
         if not response.data:
             raise Exception(f"Агент с ID {agent_id} не найден.")
@@ -39,12 +44,17 @@ class AgentService:
         """Возвращает список всех доступных агентов, опционально фильтруя по типу."""
         if not self.supabase:
             return []
+            
         query = self.supabase.table("ai_models").select("*")
         if model_type:
             query = query.eq("model_type", model_type.value)
         
-        response = query.execute()
-        return [AIAgent(**item) for item in response.data]
+        try:
+            response = query.execute()
+            return [AIAgent(**item) for item in response.data]
+        except Exception as e:
+            print(f"Error listing agents: {e}")
+            return []
 
     async def execute_agent_request(self, request: AIRequest) -> AIResponse:
         """
@@ -62,7 +72,7 @@ class AgentService:
         else:
             # Иначе пытаемся получить данные из БД по ID агента
             if not self.supabase:
-                raise Exception("Supabase client not initialized and no complete AI config provided in request.")
+                raise Exception("Autonomous mode failed (missing key/URL in request) and Database is not available.")
             
             agent = await self.get_agent(request.agent_id)
             if not agent.is_active:
@@ -74,7 +84,7 @@ class AgentService:
             model_type = agent.model_type
 
         if not api_key:
-            raise Exception("API Key не предоставлен.")
+            raise Exception("No AI API Key provided.")
 
         # Вызов инфраструктурного слоя для работы с LiteLLM
         return await ai_client.complete(

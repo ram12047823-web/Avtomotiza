@@ -10,18 +10,17 @@ from ..service.agent_service import agent_service
 
 class TestService:
     def __init__(self):
-        supabase_url = os.getenv("SUPABASE_URL", "")
-        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY", "")
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
         
-        if not supabase_url or not supabase_key:
-            print("Warning: Supabase credentials not found in TestService. DB operations will be skipped.")
-            self.supabase = None
-        else:
+        self.supabase = None
+        if supabase_url and supabase_key:
             try:
                 self.supabase: Client = create_client(supabase_url, supabase_key)
             except Exception as e:
-                print(f"Error initializing Supabase client in TestService: {e}")
-                self.supabase = None
+                print(f"Warning: Failed to initialize Supabase client in TestService: {e}")
+        else:
+            print("Warning: Supabase credentials not found in TestService. DB features will be disabled.")
 
     async def run_test(self, url: str, level: TestLevel, ai_agent_id: Optional[UUID] = None, ai_configs: List[AIConfig] = []) -> TestTask:
         """Запуск теста в зависимости от уровня."""
