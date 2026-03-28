@@ -11,19 +11,39 @@ from ..service.agent_service import agent_service
 class TestService:
     def __init__(self):
         supabase_url = os.getenv("SUPABASE_URL", "")
-        supabase_key = os.getenv("SUPABASE_KEY", "")
-        self.supabase: Client = create_client(supabase_url, supabase_key)
+        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY", "")
+        
+        if not supabase_url or not supabase_key:
+            print("Warning: Supabase credentials not found in TestService. DB operations will be skipped.")
+            self.supabase = None
+        else:
+            try:
+                self.supabase: Client = create_client(supabase_url, supabase_key)
+            except Exception as e:
+                print(f"Error initializing Supabase client in TestService: {e}")
+                self.supabase = None
 
     async def run_test(self, url: str, level: TestLevel, ai_agent_id: Optional[UUID] = None, ai_configs: List[AIConfig] = []) -> TestTask:
         """Запуск теста в зависимости от уровня."""
-        # 1. Создание записи о тесте в БД
+        # 1. Создание записи о тесте в БД (опционально)
         test_data = {
             "url": url,
             "level": level.value,
             "status": TestStatus.RUNNING.value
         }
-        response = self.supabase.table("tests").insert(test_data).execute()
-        test_task = TestTask(**response.data[0])
+        
+        test_task = None
+        if self.supabase:
+            try:
+                response = self.supabase.table("tests").insert(test_data).execute()
+                if response.data:
+                    test_task = TestTask(**response.data[0])
+            except Exception as e:
+                print(f"Error saving test to DB: {e}")
+
+        if not test_task:
+            # Создаем временный объект если БД недоступна
+            test_task = TestTask(id=UUID(int=0), url=url, level=level, status=TestStatus.RUNNING)
 
         try:
             if level == TestLevel.EXPRESS:
@@ -32,12 +52,14 @@ class TestService:
                 await self._run_deep_test(test_task, ai_agent_id, ai_configs)
             
             # Обновление статуса на Completed
-            self.supabase.table("tests").update({"status": TestStatus.COMPLETED.value}).eq("id", str(test_task.id)).execute()
+            if self.supabase and test_task.id != UUID(int=0):
+                self.supabase.table("tests").update({"status": TestStatus.COMPLETED.value}).eq("id", str(test_task.id)).execute()
             test_task.status = TestStatus.COMPLETED
             
         except Exception as e:
             print(f"Test failed: {e}")
-            self.supabase.table("tests").update({"status": TestStatus.FAILED.value}).eq("id", str(test_task.id)).execute()
+            if self.supabase and test_task.id != UUID(int=0):
+                self.supabase.table("tests").update({"status": TestStatus.FAILED.value}).eq("id", str(test_task.id)).execute()
             test_task.status = TestStatus.FAILED
 
         return test_task
@@ -78,7 +100,11 @@ class TestService:
             issues=issues
         )
         
-        self.supabase.table("test_results").insert(result.model_dump(exclude={"id", "created_at"})).execute()
+        if self.supabase:
+            try:
+                self.supabase.table("test_results").insert(result.model_dump(exclude={"id", "created_at"})).execute()
+            except Exception as e:
+                print(f"Error saving result to DB: {e}")
 
     async def _run_deep_test(self, test_task: TestTask, ai_agent_id: Optional[UUID], ai_configs: List[AIConfig] = []):
         """Логика глубокого теста с краулером."""
@@ -118,6 +144,10 @@ class TestService:
                 video_url=video_url or res.get('video_path')
             )
             
-            self.supabase.table("test_results").insert(result.model_dump(exclude={"id", "created_at"})).execute()
+            if self.supabase:
+                try:
+                    self.supabase.table("test_results").insert(result.model_dump(exclude={"id", "created_at"})).execute()
+                except Exception as e:
+                    print(f"Error saving deep test result to DB: {e}")
 
 test_service = TestService()

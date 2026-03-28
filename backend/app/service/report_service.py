@@ -11,8 +11,18 @@ from ..domain.models import TestTask, TestResult, TestIssue
 class ReportService:
     def __init__(self):
         supabase_url = os.getenv("SUPABASE_URL", "")
-        supabase_key = os.getenv("SUPABASE_KEY", "")
-        self.supabase: Client = create_client(supabase_url, supabase_key)
+        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY", "")
+        
+        if not supabase_url or not supabase_key:
+            print("Warning: Supabase credentials not found in ReportService.")
+            self.supabase = None
+        else:
+            try:
+                self.supabase: Client = create_client(supabase_url, supabase_key)
+            except Exception as e:
+                print(f"Error initializing Supabase client in ReportService: {e}")
+                self.supabase = None
+        
         self.reports_dir = "reports"
         if not os.path.exists(self.reports_dir):
             os.makedirs(self.reports_dir)

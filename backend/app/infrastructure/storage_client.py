@@ -10,13 +10,27 @@ class StorageClient:
         self.supabase_url = os.getenv("SUPABASE_URL", "")
         # Используем SERVICE_ROLE_KEY для записи в Storage
         self.supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY", "")
-        self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
+        
+        if not self.supabase_url or not self.supabase_key:
+            print("Warning: Supabase credentials not found in StorageClient.")
+            self.supabase = None
+        else:
+            try:
+                self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
+            except Exception as e:
+                print(f"Error initializing Supabase client in StorageClient: {e}")
+                self.supabase = None
 
     async def upload_media(self, local_path: str, scan_id: str) -> Optional[str]:
         """
         Загружает локальный файл в Supabase Storage и возвращает Public URL.
         После успешной загрузки удаляет локальный файл.
         """
+        if not self.supabase:
+            print("Supabase client not initialized in StorageClient. Skipping upload.")
+            if os.path.exists(local_path):
+                os.remove(local_path)
+            return None
         if not os.path.exists(local_path):
             print(f"File not found: {local_path}")
             return None
