@@ -7,7 +7,6 @@ import os
 
 class AgentService:
     def __init__(self):
-        # Используем SERVICE_ROLE_KEY для административных действий
         supabase_url = os.getenv("SUPABASE_URL")
         supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
         
@@ -15,10 +14,10 @@ class AgentService:
         if supabase_url and supabase_key:
             try:
                 self.supabase: Client = create_client(supabase_url, supabase_key)
-            except Exception as e:
-                print(f"Warning: Failed to initialize Supabase client: {e}")
+            except Exception:
+                print("Supabase disabled")
         else:
-            print("Warning: Supabase credentials not found. DB features will be disabled.")
+            print("Supabase disabled")
 
     async def create_agent(self, agent_data: AIAgentCreate) -> AIAgent:
         """Сохраняет нового ИИ-агента в Supabase."""
@@ -58,33 +57,16 @@ class AgentService:
 
     async def execute_agent_request(self, request: AIRequest) -> AIResponse:
         """
-        Основная логика: выполняет запрос через LiteLLM.
-        Приоритет отдается конфигурации из запроса (ai_config).
-        Если ai_config.api_key и ip_url предоставлены, запрос выполняется БЕЗ обращения к Supabase.
+        Логика: воркер берет api_key и ip_url только из входящего запроса (ai_config).
+        Если данных в запросе нет, возвращает ошибку (полная автономность).
         """
-        # Если в запросе переданы ВСЕ необходимые данные для автономной работы
-        if request.ai_config and request.ai_config.api_key and request.ai_config.ip_url:
-            api_key = request.ai_config.api_key
-            base_url = request.ai_config.ip_url
-            model_name = request.ai_config.model_name or "gpt-3.5-turbo"
-            # Для автономного режима используем тип из запроса или GENERAL
-            model_type = request.ai_config.category or ModelType.GENERAL
-        else:
-            # Иначе пытаемся получить данные из БД по ID агента
-            if not self.supabase:
-                raise Exception("Autonomous mode failed (missing key/URL in request) and Database is not available.")
-            
-            agent = await self.get_agent(request.agent_id)
-            if not agent.is_active:
-                raise Exception(f"Агент {agent.name} деактивирован.")
-            
-            api_key = (request.ai_config.api_key if request.ai_config else None) or agent.api_key
-            base_url = (request.ai_config.ip_url if request.ai_config else None) or agent.base_url
-            model_name = (request.ai_config.model_name if request.ai_config else None) or agent.model_name
-            model_type = agent.model_type
+        if not request.ai_config or not request.ai_config.api_key or not request.ai_config.ip_url:
+            raise Exception("Autonomous mode: api_key and ip_url (Base URL) must be provided in request.")
 
-        if not api_key:
-            raise Exception("No AI API Key provided.")
+        api_key = request.ai_config.api_key
+        base_url = request.ai_config.ip_url
+        model_name = request.ai_config.model_name or "gpt-3.5-turbo"
+        model_type = request.ai_config.category or ModelType.GENERAL
 
         # Вызов инфраструктурного слоя для работы с LiteLLM
         return await ai_client.complete(

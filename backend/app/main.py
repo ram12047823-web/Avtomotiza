@@ -16,7 +16,7 @@ app = FastAPI(
     version="0.1.0"
 )
 
-# Настройка CORS сразу после создания app
+# Настройка CORS для всех источников
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
