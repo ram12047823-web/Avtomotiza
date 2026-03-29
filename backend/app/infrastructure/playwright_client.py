@@ -17,10 +17,14 @@ class PlaywrightClient:
     async def get_page_info(self, url: str) -> Dict[str, Any]:
         """Экспресс-тест: статус-код, скриншот и код страницы."""
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
+            browser = await p.chromium.launch(
+                headless=True,
+                args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+            )
             page = await browser.new_page()
+            page.set_default_timeout(60000)
             
-            response = await page.goto(url)
+            response = await page.goto(url, wait_until="networkidle", timeout=60000)
             status = response.status
             page_source = await page.content()
             
@@ -42,15 +46,17 @@ class PlaywrightClient:
         to_visit = [base_url]
         
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
+            browser = await p.chromium.launch(
+                headless=True,
+                args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+            )
             
             # Настройка контекста с записью видео в /tmp
             context = await browser.new_context(
                 record_video_dir=self.video_dir,
                 record_video_size={"width": 1280, "height": 720}
             )
-            
-            count = 0
+            context.set_default_timeout(60000)
             while to_visit and count < max_pages:
                 current_url = to_visit.pop(0)
                 if current_url in visited:

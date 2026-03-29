@@ -7,7 +7,11 @@ class SupabaseSingleton:
     def __new__(cls):
         if cls._instance is None:
             supabase_url = os.getenv("SUPABASE_URL")
+            if supabase_url:
+                supabase_url = supabase_url.strip().rstrip('/')
             supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
+            if supabase_key:
+                supabase_key = supabase_key.strip()
             
             if supabase_url and supabase_key:
                 try:
