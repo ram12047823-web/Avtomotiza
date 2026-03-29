@@ -1,4 +1,5 @@
 import os
+import socket
 from supabase import create_client, Client
 
 class SupabaseSingleton:
@@ -7,9 +8,22 @@ class SupabaseSingleton:
     def __new__(cls):
         if cls._instance is None:
             supabase_url = os.getenv("SUPABASE_URL")
-            if supabase_url:
+            
+            if not supabase_url:
+                print("CRITICAL: SUPABASE_URL IS EMPTY")
+            else:
                 # Очистка от кавычек и лишних пробелов
                 supabase_url = supabase_url.strip().strip('"').strip("'").rstrip('/')
+                
+                # Диагностика DNS
+                try:
+                    host = supabase_url.replace("https://", "").replace("http://", "").split("/")[0]
+                    print(f"DIAGNOSTIC: Attempting to resolve IP for host: {host}")
+                    ip = socket.gethostbyname(host)
+                    print(f"DIAGNOSTIC: IP for host is {ip}")
+                except Exception as dns_err:
+                    print(f"DIAGNOSTIC: DNS RESOLUTION FAILED for {supabase_url}: {dns_err}")
+
                 # Исправление ситуации с двойным протоколом или опечатками
                 if "http" in supabase_url:
                     parts = supabase_url.split("://")

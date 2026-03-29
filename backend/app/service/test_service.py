@@ -51,8 +51,12 @@ class TestService:
                 except Exception as e:
                     print(f"WORKER: Error saving new test to DB: {e}")
 
+            if not test_task and self.supabase:
+                print("WORKER: ABORTING: No DB connection or record found.")
+                return TestTask(id=test_id or UUID(int=0), url=url, level=level, status=TestStatus.FAILED)
+
             if not test_task:
-                # Создаем временный объект если БД недоступна или запись не найдена
+                # Создаем временный объект если БД недоступна (только если supabase отключен намеренно)
                 test_task = TestTask(id=test_id or UUID(int=0), url=url, level=level, status=TestStatus.RUNNING)
 
             # ВЫПОЛНЕНИЕ ТЕСТА
