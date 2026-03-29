@@ -6,24 +6,12 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from supabase import create_client, Client
-from ..domain.models import TestTask, TestResult, TestIssue
+from ..domain.models import TestTask, TestResult
+from ..infrastructure.supabase_client import get_supabase
 
 class ReportService:
     def __init__(self):
-        supabase_url = os.getenv("SUPABASE_URL")
-        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
-        
-        if not supabase_url or not supabase_key:
-            print("Warning: Supabase credentials not found in ReportService. DB features will be disabled.")
-            self.supabase = None
-        else:
-            url_to_log = supabase_url[:15] + "..." + supabase_url[-4:] if len(supabase_url) > 20 else supabase_url
-            print(f"ReportService: Attempting to connect to Supabase at: {url_to_log}")
-            try:
-                self.supabase: Client = create_client(supabase_url, supabase_key)
-            except Exception as e:
-                print(f"Warning: Failed to initialize Supabase client in ReportService: {e}")
-                self.supabase = None
+        self.supabase = get_supabase()
         
         self.reports_dir = "/tmp/reports"
         if not os.path.exists(self.reports_dir):

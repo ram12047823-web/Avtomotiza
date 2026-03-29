@@ -3,24 +3,11 @@ from uuid import UUID
 from supabase import create_client, Client
 from ..domain.models import AIAgent, AIAgentCreate, AIRequest, AIResponse, ModelType
 from ..infrastructure.ai_client import ai_client
-import os
+from ..infrastructure.supabase_client import get_supabase
 
 class AgentService:
     def __init__(self):
-        supabase_url = os.getenv("SUPABASE_URL")
-        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
-        
-        self.supabase = None
-        if supabase_url and supabase_key:
-            # Безопасное логирование URL
-            url_to_log = supabase_url[:15] + "..." + supabase_url[-4:] if len(supabase_url) > 20 else supabase_url
-            print(f"Attempting to connect to Supabase at: {url_to_log}")
-            try:
-                self.supabase: Client = create_client(supabase_url, supabase_key)
-            except Exception as e:
-                print(f"CRITICAL: Invalid SUPABASE_URL format. Error: {e}")
-        else:
-            print("Supabase disabled: missing credentials")
+        self.supabase = get_supabase()
 
     async def create_agent(self, agent_data: AIAgentCreate) -> AIAgent:
         """Сохраняет нового ИИ-агента в Supabase."""
