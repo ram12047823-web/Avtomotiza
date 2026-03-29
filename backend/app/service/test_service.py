@@ -22,27 +22,38 @@ class TestService:
         else:
             print("Warning: Supabase credentials not found in TestService. DB features will be disabled.")
 
-    async def run_test(self, url: str, level: TestLevel, ai_agent_id: Optional[UUID] = None, ai_configs: List[AIConfig] = []) -> TestTask:
+    async def run_test(self, url: str, level: TestLevel, ai_agent_id: Optional[UUID] = None, ai_configs: List[AIConfig] = [], test_id: Optional[UUID] = None) -> TestTask:
         """Запуск теста в зависимости от уровня."""
-        # 1. Создание записи о тесте в БД (опционально)
-        test_data = {
-            "url": url,
-            "level": level.value,
-            "status": TestStatus.RUNNING.value
-        }
-        
+        # 1. Если ID уже есть (создан фронтендом), просто обновляем статус
         test_task = None
-        if self.supabase:
+        if self.supabase and test_id:
+            try:
+                # Обновляем статус на Running для существующей записи
+                update_res = self.supabase.table("tests").update({"status": TestStatus.RUNNING.value}).eq("id", str(test_id)).execute()
+                if update_res.data:
+                    test_task = TestTask(**update_res.data[0])
+                else:
+                    print(f"Warning: Test with ID {test_id} not found for update.")
+            except Exception as e:
+                print(f"Error updating existing test in DB: {e}")
+
+        # 2. Если записи еще нет и ID не был передан, создаем новую
+        if not test_task and self.supabase and not test_id:
+            test_data = {
+                "url": url,
+                "level": level.value,
+                "status": TestStatus.RUNNING.value
+            }
             try:
                 response = self.supabase.table("tests").insert(test_data).execute()
                 if response.data:
                     test_task = TestTask(**response.data[0])
             except Exception as e:
-                print(f"Error saving test to DB: {e}")
+                print(f"Error saving new test to DB: {e}")
 
         if not test_task:
-            # Создаем временный объект если БД недоступна
-            test_task = TestTask(id=UUID(int=0), url=url, level=level, status=TestStatus.RUNNING)
+            # Создаем временный объект если БД недоступна или запись не найдена
+            test_task = TestTask(id=test_id or UUID(int=0), url=url, level=level, status=TestStatus.RUNNING)
 
         try:
             if level == TestLevel.EXPRESS:

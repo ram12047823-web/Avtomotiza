@@ -31,10 +31,11 @@ async def run_test(
     try:
         # Запуск теста в фоне, чтобы не блокировать API
         test_task = await test_service.run_test(
-            request.url, 
-            request.level, 
-            ai_agent_id, 
-            request.ai_configs
+            url=request.url, 
+            level=request.level, 
+            ai_agent_id=ai_agent_id, 
+            ai_configs=request.ai_configs,
+            test_id=request.id
         )
         return test_task
     except Exception as e:

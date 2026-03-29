@@ -85,6 +85,7 @@ class AIConfig(BaseModel):
         return v
 
 class ScanRequest(BaseModel):
+    id: Optional[UUID] = Field(None, alias="scan_id")
     url: str
     level: TestLevel = Field(..., alias="mode")
     ai_configs: List[AIConfig] = Field(..., alias="ai_config")
