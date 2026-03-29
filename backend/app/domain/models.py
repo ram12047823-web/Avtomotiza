@@ -21,6 +21,7 @@ class TestStatus(str, Enum):
     RUNNING = "Running"
     COMPLETED = "Completed"
     FAILED = "Failed"
+    CANCELLED = "Cancelled"
 
 class AIAgent(BaseModel):
     id: Optional[UUID] = None

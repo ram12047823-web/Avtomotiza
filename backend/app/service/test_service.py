@@ -74,10 +74,26 @@ class TestService:
 
         return test_task
 
+    async def _check_cancellation(self, test_id: UUID):
+        """Проверяет, не был ли тест отменен пользователем."""
+        if not self.supabase or test_id == UUID(int=0):
+            return
+
+        try:
+            res = self.supabase.table("tests").select("status").eq("id", str(test_id)).execute()
+            if res.data and res.data[0]['status'] == TestStatus.CANCELLED.value:
+                raise Exception("Test was cancelled by user")
+        except Exception as e:
+            if "cancelled" in str(e).lower():
+                raise e
+            print(f"Error checking cancellation status: {e}")
+
     async def _run_express_test(self, test_task: TestTask, ai_agent_id: Optional[UUID], ai_configs: List[AIConfig] = []):
         """Логика экспресс-теста."""
+        await self._check_cancellation(test_task.id)
         info = await playwright_client.get_page_info(test_task.url)
         
+        await self._check_cancellation(test_task.id)
         # Загрузка скриншота в Storage (если клиент инициализирован)
         screenshot_url = None
         if storage_client.supabase:
@@ -137,9 +153,11 @@ class TestService:
 
     async def _run_deep_test(self, test_task: TestTask, ai_agent_id: Optional[UUID], ai_configs: List[AIConfig] = []):
         """Логика глубокого теста с краулером."""
+        await self._check_cancellation(test_task.id)
         results = await playwright_client.crawl_and_test(test_task.url, max_pages=5)
         
         for res in results:
+            await self._check_cancellation(test_task.id)
             # Загрузка скриншота и видео в Storage (если клиент инициализирован)
             screenshot_url = None
             video_url = None
@@ -147,6 +165,7 @@ class TestService:
                 screenshot_url = await storage_client.upload_media(res['screenshot_path'], str(test_task.id))
                 video_url = await storage_client.upload_media(res['video_path'], str(test_task.id)) if res.get('video_path') else None
 
+            await self._check_cancellation(test_task.id)
             issues = []
             # Если предоставлены конфиги, используем их для анализа каждой страницы
             if ai_configs:

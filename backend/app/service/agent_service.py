@@ -14,10 +14,10 @@ class AgentService:
         if supabase_url and supabase_key:
             try:
                 self.supabase: Client = create_client(supabase_url, supabase_key)
-            except Exception:
-                print("Supabase disabled")
+            except Exception as e:
+                print(f"CRITICAL: Invalid SUPABASE_URL format. Error: {e}")
         else:
-            print("Supabase disabled")
+            print("Supabase disabled: missing credentials")
 
     async def create_agent(self, agent_data: AIAgentCreate) -> AIAgent:
         """Сохраняет нового ИИ-агента в Supabase."""
