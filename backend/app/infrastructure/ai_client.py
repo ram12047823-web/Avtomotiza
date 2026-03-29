@@ -37,17 +37,39 @@ class AIClient:
         api_key: Optional[str], 
         model_type: ModelType, 
         user_prompt: str,
+        image_url: Optional[str] = None,
+        page_source: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 1000
     ) -> AIResponse:
         """
         Выполняет запрос к ИИ с динамическим base_url и системным промптом.
+        Поддерживает Vision API и передачу кода страницы.
         """
         system_prompt = self.system_prompts.get(model_type, self.system_prompts[ModelType.GENERAL])
         
+        # Улучшенный промпт для получения координат багов
+        enhanced_prompt = (
+            f"{user_prompt}\n\n"
+            "ВАЖНО: Если вы обнаружили визуальный баг, обязательно укажите его координаты "
+            "в формате JSON в конце вашего ответа: [COORDINATES]{\"x\": 0, \"y\": 0, \"width\": 0, \"height\": 0}[/COORDINATES]. "
+            "Используйте проценты от ширины и высоты экрана (0-100)."
+        )
+
+        if page_source:
+            enhanced_prompt += f"\n\nКод страницы для анализа:\n{page_source[:5000]}" # Ограничение для контекста
+
+        content = [{"type": "text", "text": enhanced_prompt}]
+        
+        if image_url:
+            content.append({
+                "type": "image_url",
+                "image_url": {"url": image_url}
+            })
+
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
+            {"role": "user", "content": content}
         ]
 
         try:
@@ -56,18 +78,33 @@ class AIClient:
                 model=model_name,
                 messages=messages,
                 api_base=base_url,
-                api_key=api_key or "no-key", # LiteLLM требует ключ, даже если он не нужен модели
+                api_key=api_key or "no-key",
                 temperature=temperature,
                 max_tokens=max_tokens
             )
             
+            raw_content = response.choices[0].message.content
+            
+            # Парсинг координат из ответа
+            coordinates = None
+            import re
+            coord_match = re.search(r"\[COORDINATES\](.*?)\[/COORDINATES\]", raw_content, re.DOTALL)
+            if coord_match:
+                import json
+                try:
+                    coordinates = json.loads(coord_match.group(1).strip())
+                    # Очищаем основной текст от тегов координат для красоты
+                    raw_content = re.sub(r"\[COORDINATES\].*?\[/COORDINATES\]", "", raw_content, flags=re.DOTALL).strip()
+                except:
+                    pass
+
             return AIResponse(
-                content=response.choices[0].message.content,
+                content=raw_content,
                 usage=response.get("usage", {}),
-                model=model_name
+                model=model_name,
+                coordinates=coordinates
             )
         except Exception as e:
-            # В реальном приложении здесь должна быть более детальная обработка ошибок
             raise Exception(f"Ошибка при вызове ИИ модели: {str(e)}")
 
 ai_client = AIClient()

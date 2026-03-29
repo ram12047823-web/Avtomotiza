@@ -57,24 +57,44 @@ class AgentService:
 
     async def execute_agent_request(self, request: AIRequest) -> AIResponse:
         """
-        Логика: воркер берет api_key и ip_url только из входящего запроса (ai_config).
-        Если данных в запросе нет, возвращает ошибку (полная автономность).
+        Логика оркестрации ИИ:
+        1. Если в ai_config есть ip_url (Custom IP) — шлем туда.
+        2. Иначе используем дефолтный Vision API (GPT-4o Vision или подобное через LiteLLM).
         """
-        if not request.ai_config or not request.ai_config.api_key or not request.ai_config.ip_url:
-            raise Exception("Autonomous mode: api_key and ip_url (Base URL) must be provided in request.")
+        # Параметры по умолчанию (Vision API)
+        api_key = os.getenv("DEFAULT_AI_API_KEY")
+        base_url = os.getenv("DEFAULT_AI_BASE_URL")
+        model_name = os.getenv("DEFAULT_AI_MODEL_NAME", "gpt-4o")
+        model_type = ModelType.GENERAL
 
-        api_key = request.ai_config.api_key
-        base_url = request.ai_config.ip_url
-        model_name = request.ai_config.model_name or "gpt-3.5-turbo"
-        model_type = request.ai_config.category or ModelType.GENERAL
+        # Если в запросе пришел конфиг, переопределяем
+        if request.ai_config:
+            if request.ai_config.ip_url:
+                # Custom IP mode
+                base_url = request.ai_config.ip_url
+                api_key = request.ai_config.api_key
+                model_name = request.ai_config.model_name or "gpt-3.5-turbo"
+            
+            if request.ai_config.category:
+                try:
+                    # Нормализация категории
+                    v_lower = request.ai_config.category.strip().lower()
+                    if v_lower in ['usability', 'ux']: model_type = ModelType.UX
+                    elif v_lower == 'security': model_type = ModelType.SECURITY
+                    elif v_lower == 'performance': model_type = ModelType.PERFORMANCE
+                    elif v_lower == 'accessibility': model_type = ModelType.ACCESSIBILITY
+                except:
+                    pass
 
-        # Вызов инфраструктурного слоя для работы с LiteLLM
+        # Вызов инфраструктурного слоя
         return await ai_client.complete(
             model_name=model_name,
             base_url=base_url,
             api_key=api_key,
             model_type=model_type,
             user_prompt=request.prompt,
+            image_url=request.image_url,
+            page_source=request.page_source,
             temperature=request.temperature,
             max_tokens=request.max_tokens
         )

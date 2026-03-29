@@ -15,13 +15,14 @@ class PlaywrightClient:
                 os.makedirs(d, exist_ok=True)
 
     async def get_page_info(self, url: str) -> Dict[str, Any]:
-        """Экспресс-тест: статус-код и скриншот."""
+        """Экспресс-тест: статус-код, скриншот и код страницы."""
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
             page = await browser.new_page()
             
             response = await page.goto(url)
             status = response.status
+            page_source = await page.content()
             
             screenshot_path = os.path.join(self.screenshot_dir, f"express_{int(asyncio.get_event_loop().time())}.png")
             await page.screenshot(path=screenshot_path)
@@ -30,6 +31,7 @@ class PlaywrightClient:
             return {
                 "status_code": status,
                 "screenshot_path": screenshot_path,
+                "page_source": page_source,
                 "url": url
             }
 
@@ -61,6 +63,7 @@ class PlaywrightClient:
                 try:
                     response = await page.goto(current_url, wait_until="networkidle")
                     status = response.status
+                    page_source = await page.content()
                     
                     # Скриншот для анализа в /tmp
                     screenshot_name = f"deep_{count}_{int(asyncio.get_event_loop().time())}.png"
@@ -82,6 +85,7 @@ class PlaywrightClient:
                     results.append({
                         "url": current_url,
                         "status_code": status,
+                        "page_source": page_source,
                         "screenshot_path": screenshot_path,
                         "video_path": video_path
                     })

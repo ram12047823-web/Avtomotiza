@@ -109,13 +109,16 @@ class TestService:
                         agent_id=UUID(int=0), # Не используется в автономном режиме
                         prompt=f"Проанализируй сайт {test_task.url}. Статус-код: {info['status_code']}. "
                                f"Найди критические ошибки на главной странице.",
-                        ai_config=config
+                        ai_config=config,
+                        image_url=screenshot_url or info['screenshot_path'],
+                        page_source=info['page_source']
                     ))
                     
                     issues.append(TestIssue(
                         description=ai_response.content,
                         recommendation=f"Рекомендации от ИИ ({config.category}): Следуйте советам выше.",
-                        screenshot_url=screenshot_url or info['screenshot_path']
+                        screenshot_url=screenshot_url or info['screenshot_path'],
+                        coordinates=ai_response.coordinates
                     ))
                 except Exception as e:
                     print(f"Error executing autonomous AI request for {config.category}: {e}")
@@ -175,14 +178,17 @@ class TestService:
                             agent_id=UUID(int=0),
                             prompt=f"Проанализируй страницу {res['url']}. Статус-код: {res['status_code']}. "
                                    f"Найди ошибки UX/UI или безопасности.",
-                            ai_config=config
+                            ai_config=config,
+                            image_url=screenshot_url or res['screenshot_path'],
+                            page_source=res['page_source']
                         ))
                         
                         if "ошибка" in ai_response.content.lower() or "проблема" in ai_response.content.lower():
                             issues.append(TestIssue(
                                 description=ai_response.content,
                                 recommendation=f"Исправьте найденные ИИ ({config.category}) недочеты.",
-                                screenshot_url=screenshot_url or res['screenshot_path']
+                                screenshot_url=screenshot_url or res['screenshot_path'],
+                                coordinates=ai_response.coordinates
                             ))
                     except Exception as e:
                         print(f"Error executing autonomous deep AI request for {config.category}: {e}")

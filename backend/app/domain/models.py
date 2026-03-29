@@ -109,6 +109,8 @@ class AIRequest(BaseModel):
     agent_id: UUID
     prompt: str
     ai_config: Optional[AIConfig] = Field(None, alias="ai_configs")
+    image_url: Optional[str] = None  # Для Vision API
+    page_source: Optional[str] = None  # Код сайта
     max_tokens: Optional[int] = 1000
     temperature: float = 0.7
 
@@ -119,6 +121,7 @@ class AIResponse(BaseModel):
     content: str
     usage: Optional[dict] = None
     model: str
+    coordinates: Optional[dict] = None  # Новое поле для координат багов
 
 class TestTask(BaseModel):
     id: Optional[UUID] = None
@@ -132,6 +135,7 @@ class TestIssue(BaseModel):
     recommendation: str
     screenshot_url: Optional[str] = None
     severity: str = "medium"
+    coordinates: Optional[dict] = None  # Новое поле для хранения координат JSON
 
 class TestResult(BaseModel):
     id: Optional[UUID] = None
