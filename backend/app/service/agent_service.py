@@ -12,6 +12,9 @@ class AgentService:
         
         self.supabase = None
         if supabase_url and supabase_key:
+            # Безопасное логирование URL
+            url_to_log = supabase_url[:15] + "..." + supabase_url[-4:] if len(supabase_url) > 20 else supabase_url
+            print(f"Attempting to connect to Supabase at: {url_to_log}")
             try:
                 self.supabase: Client = create_client(supabase_url, supabase_key)
             except Exception as e:
