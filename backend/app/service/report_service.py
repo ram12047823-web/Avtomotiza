@@ -6,8 +6,9 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from supabase import create_client, Client
-from ..domain.models import TestTask, TestResult
+from ..domain.models import TestTask, TestResult, TestIssue
 from ..infrastructure.supabase_client import get_supabase
+from ..infrastructure.database_direct import HEADERS
 
 class ReportService:
     def __init__(self):
@@ -19,15 +20,24 @@ class ReportService:
 
     async def generate_pdf_report(self, test_id: UUID) -> str:
         """Собирает данные из Supabase и генерирует PDF отчет."""
+        import httpx
+        supabase_url = os.getenv("SUPABASE_URL")
+        
         # 1. Получение данных о тесте
-        test_res = self.supabase.table("tests").select("*").eq("id", str(test_id)).execute()
-        if not test_res.data:
-            raise Exception("Тест не найден")
-        test_task = TestTask(**test_res.data[0])
+        print(f"REPORT_SERVICE: Fetching test {test_id}...", flush=True)
+        test_endpoint = f"{supabase_url}/rest/v1/tests?id=eq.{test_id}&select=*"
+        
+        async with httpx.AsyncClient() as client:
+            test_resp = await client.get(test_endpoint, headers=HEADERS)
+            if test_resp.status_code >= 400 or not test_resp.json():
+                raise Exception("Тест не найден")
+            test_task = TestTask(**test_resp.json()[0])
 
-        # 2. Получение результатов теста
-        results_res = self.supabase.table("test_results").select("*").eq("test_id", str(test_id)).execute()
-        results: List[TestResult] = [TestResult(**item) for item in results_res.data]
+            # 2. Получение результатов теста
+            print(f"REPORT_SERVICE: Fetching results for test {test_id}...", flush=True)
+            results_endpoint = f"{supabase_url}/rest/v1/test_results?test_id=eq.{test_id}&select=*"
+            results_resp = await client.get(results_endpoint, headers=HEADERS)
+            results: List[TestResult] = [TestResult(**item) for item in results_resp.json()] if results_resp.status_code < 400 else []
 
         # 3. Настройка PDF
         file_path = os.path.join(self.reports_dir, f"report_{test_id}.pdf")

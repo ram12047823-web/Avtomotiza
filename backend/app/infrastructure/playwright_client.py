@@ -19,7 +19,7 @@ class PlaywrightClient:
         async with async_playwright() as p:
             browser = await p.chromium.launch(
                 headless=True,
-                args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+                args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-ipv6"]
             )
             page = await browser.new_page()
             page.set_default_timeout(60000)
@@ -48,7 +48,7 @@ class PlaywrightClient:
         async with async_playwright() as p:
             browser = await p.chromium.launch(
                 headless=True,
-                args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+                args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-ipv6"]
             )
             
             # Настройка контекста с записью видео в /tmp
@@ -57,6 +57,7 @@ class PlaywrightClient:
                 record_video_size={"width": 1280, "height": 720}
             )
             context.set_default_timeout(60000)
+            count = 0
             while to_visit and count < max_pages:
                 current_url = to_visit.pop(0)
                 if current_url in visited:

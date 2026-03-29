@@ -10,6 +10,7 @@ from ..infrastructure.playwright_client import playwright_client
 from ..infrastructure.storage_client import storage_client
 from ..service.agent_service import agent_service
 from ..infrastructure.supabase_client import get_supabase
+from ..infrastructure.database_direct import update_scan_status, save_test_result, create_new_scan, get_test_status
 
 class TestService:
     def __init__(self):
@@ -25,39 +26,36 @@ class TestService:
         try:
             # 1. Если ID уже есть (создан фронтендом), просто обновляем статус
             test_task = None
-            if self.supabase and test_id:
+            if test_id:
                 try:
                     print(f"WORKER: Updating status to RUNNING for test {test_id}", flush=True)
-                    # Обновляем статус на Running для существующей записи
-                    update_res = self.supabase.table("tests").update({"status": TestStatus.RUNNING.value}).eq("id", str(test_id)).execute()
-                    if update_res.data:
-                        test_task = TestTask(**update_res.data[0])
-                    else:
-                        print(f"WORKER: Warning: Test with ID {test_id} not found for update.", flush=True)
+                    # Прямое обновление через HTTP с таймаутом 5 секунд для воркера
+                    try:
+                        res = await asyncio.wait_for(update_scan_status(str(test_id), TestStatus.RUNNING.value), timeout=5.0)
+                        if res is not None or True: # True так как update_scan_status возвращает None при успехе с return=minimal
+                            test_task = TestTask(id=test_id, url=url, level=level, status=TestStatus.RUNNING)
+                    except asyncio.TimeoutError:
+                        print(f"DB_TIMEOUT: Proceeding with local scan for {test_id}, results will be printed to console only.", flush=True)
+                        test_task = TestTask(id=test_id, url=url, level=level, status=TestStatus.RUNNING)
                 except Exception as e:
-                    print(f"WORKER: Error updating existing test in DB: {e}", flush=True)
+                    print(f"WORKER: Error updating existing test via Direct DB: {e}", flush=True)
 
             # 2. Если записи еще нет и ID не был передан, создаем новую
-            if not test_task and self.supabase and not test_id:
+            if not test_task and not test_id:
                 print(f"WORKER: Creating new test record for {url}", flush=True)
-                test_data = {
-                    "url": url,
-                    "level": level.value,
-                    "status": TestStatus.RUNNING.value
-                }
                 try:
-                    response = self.supabase.table("tests").insert(test_data).execute()
-                    if response.data:
-                        test_task = TestTask(**response.data[0])
+                    try:
+                        res = await asyncio.wait_for(create_new_scan(url, level.value), timeout=5.0)
+                        if res:
+                            test_task = TestTask(**res)
+                    except asyncio.TimeoutError:
+                        print(f"DB_TIMEOUT: Proceeding with local scan for {url}, results will be printed to console only.", flush=True)
+                        test_task = TestTask(id=UUID(int=0), url=url, level=level, status=TestStatus.RUNNING)
                 except Exception as e:
-                    print(f"WORKER: Error saving new test to DB: {e}", flush=True)
-
-            if not self.supabase:
-                print("WORKER: ABORTING: No DB connection. Check SUPABASE_URL and KEY.", flush=True)
-                return TestTask(id=test_id or UUID(int=0), url=url, level=level, status=TestStatus.FAILED)
+                    print(f"WORKER: Error saving new test via Direct DB: {e}", flush=True)
 
             if not test_task:
-                print("WORKER: ABORTING: No test record found in DB.", flush=True)
+                print("WORKER: ABORTING: No DB connection or record found. Check SUPABASE_URL and KEY.", flush=True)
                 return TestTask(id=test_id or UUID(int=0), url=url, level=level, status=TestStatus.FAILED)
 
             # ВЫПОЛНЕНИЕ ТЕСТА
@@ -70,43 +68,47 @@ class TestService:
                     await self._run_deep_test(test_task, ai_agent_id, ai_configs)
                 
                 # Обновление статуса на Completed
-                if self.supabase and test_task.id != UUID(int=0):
-                    print(f"WORKER: Test {test_task.id} COMPLETED. Updating DB...", flush=True)
-                    self.supabase.table("tests").update({"status": TestStatus.COMPLETED.value}).eq("id", str(test_task.id)).execute()
+                print(f"WORKER: Test {test_task.id} COMPLETED. Updating status...", flush=True)
+                try:
+                    await asyncio.wait_for(update_scan_status(str(test_task.id), TestStatus.COMPLETED.value), timeout=5.0)
+                except asyncio.TimeoutError:
+                    print(f"DB_TIMEOUT: Could not update status to COMPLETED for {test_task.id}", flush=True)
                 test_task.status = TestStatus.COMPLETED
                 
             except Exception as e:
                 print(f"WORKER: ERROR during test execution: {e}", flush=True)
-                if self.supabase and test_task.id != UUID(int=0):
-                    print(f"WORKER: Marking test {test_task.id} as FAILED in DB", flush=True)
+                if test_task.id != UUID(int=0):
+                    print(f"WORKER: Marking test {test_task.id} as FAILED", flush=True)
                     try:
-                        self.supabase.table("tests").update({"status": TestStatus.FAILED.value}).eq("id", str(test_task.id)).execute()
-                    except Exception as db_err:
-                        print(f"WORKER: Could not update status to FAILED: {db_err}", flush=True)
+                        await asyncio.wait_for(update_scan_status(str(test_task.id), TestStatus.FAILED.value), timeout=5.0)
+                    except asyncio.TimeoutError:
+                        print(f"DB_TIMEOUT: Could not update status to FAILED for {test_task.id}", flush=True)
                 test_task.status = TestStatus.FAILED
-                raise e # Пробрасываем выше для общего обработчика
+                raise e
 
             return test_task
 
         except Exception as global_err:
             print(f"WORKER: CRITICAL GLOBAL ERROR: {global_err}", flush=True)
-            # Если мы тут, значит всё совсем плохо, но мы пытаемся еще раз пометить как failed если есть ID
-            if test_id and self.supabase:
+            if test_id:
                 try:
-                    self.supabase.table("tests").update({"status": TestStatus.FAILED.value}).eq("id", str(test_id)).execute()
-                except: pass
+                    await asyncio.wait_for(update_scan_status(str(test_id), TestStatus.FAILED.value), timeout=5.0)
+                except asyncio.TimeoutError:
+                    print(f"DB_TIMEOUT: Could not update status to FAILED for {test_id} (global error)", flush=True)
             return TestTask(id=test_id or UUID(int=0), url=url, level=level, status=TestStatus.FAILED)
 
     async def _check_cancellation(self, test_id: UUID):
         """Проверяет, не был ли тест отменен пользователем."""
-        if not self.supabase or test_id == UUID(int=0):
+        if test_id == UUID(int=0):
             return
 
         try:
-            res = self.supabase.table("tests").select("status").eq("id", str(test_id)).execute()
-            if res.data and res.data[0]['status'] == TestStatus.CANCELLED.value:
+            status = await asyncio.wait_for(get_test_status(str(test_id)), timeout=5.0)
+            if status == TestStatus.CANCELLED.value:
                 print(f"WORKER: Test {test_id} was CANCELLED by user. Stopping...", flush=True)
                 raise Exception("Test was cancelled by user")
+        except asyncio.TimeoutError:
+            print(f"DB_TIMEOUT: Could not check cancellation status for {test_id}", flush=True)
         except Exception as e:
             if "cancelled" in str(e).lower():
                 raise e
@@ -153,10 +155,9 @@ class TestService:
                     print(f"WORKER: Error executing autonomous AI request for {config.category}: {e}", flush=True)
 
         # Если конфигов нет, но есть agent_id и база доступна, используем старую логику
-        elif ai_agent_id and self.supabase:
+        elif ai_agent_id:
             try:
                 print(f"WORKER: Using agent {ai_agent_id} for analysis...", flush=True)
-                agent = await agent_service.get_agent(ai_agent_id)
                 ai_response = await agent_service.execute_agent_request(AIRequest(
                     agent_id=ai_agent_id,
                     prompt=f"Проанализируй сайт {test_task.url}. Статус-код: {info['status_code']}. "
@@ -169,21 +170,18 @@ class TestService:
                     screenshot_url=screenshot_url or info['screenshot_path']
                 ))
             except Exception as e:
-                print(f"WORKER: Error executing DB-based AI request: {e}", flush=True)
+                print(f"WORKER: Error executing AI request: {e}", flush=True)
 
-        result = TestResult(
-            test_id=test_task.id,
-            url=test_task.url,
-            status_code=info['status_code'],
-            issues=issues
-        )
-        
-        if self.supabase:
-            try:
-                print(f"WORKER: Saving express test results to DB...", flush=True)
-                self.supabase.table("test_results").insert(result.model_dump(exclude={"id", "created_at"})).execute()
-            except Exception as e:
-                print(f"WORKER: Error saving result to DB: {e}", flush=True)
+        print(f"WORKER: Saving express test results for {test_task.url}...", flush=True)
+        try:
+            await asyncio.wait_for(save_test_result(
+                test_id=str(test_task.id),
+                url=test_task.url,
+                status_code=info['status_code'],
+                issues=[issue.model_dump() for issue in issues]
+            ), timeout=5.0)
+        except asyncio.TimeoutError:
+            print(f"DB_TIMEOUT: Could not save express test results for {test_task.url}", flush=True)
 
     async def _run_deep_test(self, test_task: TestTask, ai_agent_id: Optional[UUID], ai_configs: List[AIConfig] = []):
         """Логика глубокого теста с краулером."""
@@ -229,8 +227,8 @@ class TestService:
                     except Exception as e:
                         print(f"WORKER: Error executing autonomous deep AI request for {config.category}: {e}", flush=True)
 
-            # Если конфигов нет, но есть agent_id и база доступна
-            elif ai_agent_id and self.supabase:
+            # Если конфигов нет, но есть agent_id
+            elif ai_agent_id:
                 try:
                     print(f"WORKER: Using agent {ai_agent_id} for deep analysis of {res['url']}...", flush=True)
                     ai_response = await agent_service.execute_agent_request(AIRequest(
@@ -246,21 +244,19 @@ class TestService:
                             screenshot_url=screenshot_url or res['screenshot_path']
                         ))
                 except Exception as e:
-                    print(f"WORKER: Error executing DB-based deep AI request: {e}", flush=True)
+                    print(f"WORKER: Error executing deep AI request: {e}", flush=True)
 
-            result = TestResult(
-                test_id=test_task.id,
-                url=res['url'],
-                status_code=res['status_code'],
-                issues=issues,
-                video_url=video_url or res.get('video_path')
-            )
-            
-            if self.supabase:
-                try:
-                    print(f"WORKER: Saving page result for {res['url']} to DB...", flush=True)
-                    self.supabase.table("test_results").insert(result.model_dump(exclude={"id", "created_at"})).execute()
-                except Exception as e:
-                    print(f"WORKER: Error saving deep test result to DB: {e}", flush=True)
+            print(f"WORKER: Saving page result for {res['url']} to DB...", flush=True)
+            try:
+                await asyncio.wait_for(save_test_result(
+                    test_id=str(test_task.id),
+                    url=res['url'],
+                    status_code=res['status_code'],
+                    issues=[issue.model_dump() for issue in issues],
+                    video_url=video_url or res.get('video_path')
+                ), timeout=5.0)
+            except asyncio.TimeoutError:
+                print(f"DB_TIMEOUT: Could not save page result for {res['url']} (test_id: {test_task.id})", flush=True)
+
 
 test_service = TestService()

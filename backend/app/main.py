@@ -5,6 +5,12 @@ from dotenv import load_dotenv
 # Загрузка переменных окружения ДО импорта сервисов
 load_dotenv()
 
+# Очистка переменных окружения от кавычек
+for key in ["SUPABASE_URL", "SUPABASE_KEY"]:
+    val = os.getenv(key)
+    if val:
+        os.environ[key] = val.replace('"', '').replace("'", "").strip()
+
 # Проверка DNS для Supabase перед запуском (для Leapcell)
 supabase_url = os.getenv("SUPABASE_URL")
 if supabase_url:
@@ -37,28 +43,33 @@ app = FastAPI(
 
 @app.on_event("startup")
 async def startup_event():
-    """Проверка подключения к БД при запуске."""
-    print("Startup: Checking database connection...", flush=True)
-    supabase = get_supabase()
-    if not supabase:
+    """Проверка подключения к БД при запуске через прямой HTTP запрос."""
+    import httpx
+    from .infrastructure.database_direct import URL, HEADERS
+    
+    print(f"Startup: Checking database connection to {URL}...", flush=True)
+    
+    if not URL or "supabase.co" not in URL:
         print("\n" + "!"*60, flush=True)
-        print("!!! DATABASE CONNECTION ERROR: Supabase client not initialized !!!", flush=True)
+        print("!!! DATABASE CONNECTION ERROR: SUPABASE_URL is invalid or empty !!!")
         print("!"*60 + "\n", flush=True)
-        # Мы не выходим принудительно, чтобы дать серверу запуститься, 
-        # но логи будут очень заметными.
         return
 
     try:
-        # Пробуем сделать простой запрос к любой таблице
-        # Используем .limit(1) для минимальной нагрузки
-        supabase.table("ai_models").select("*").limit(1).execute()
-        print("Startup: Database connection SUCCESS!", flush=True)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            # Пробуем сделать простой запрос к таблице ai_models
+            resp = await client.get(f"{URL}/rest/v1/ai_models?select=id&limit=1", headers=HEADERS)
+            if resp.status_code < 400:
+                print("Startup: Database connection SUCCESS!", flush=True)
+            else:
+                print("\n" + "!"*60, flush=True)
+                print(f"!!! DATABASE CONNECTION ERROR: Status {resp.status_code} !!!")
+                print(f"!!! Detail: {resp.text} !!!")
+                print("!"*60 + "\n", flush=True)
     except Exception as e:
         print("\n" + "!"*60, flush=True)
-        print(f"!!! DATABASE CONNECTION ERROR: {e} !!!", flush=True)
+        print(f"!!! DATABASE CONNECTION ERROR: {e} !!!")
         print("!"*60 + "\n", flush=True)
-        # В облаке лучше упасть сразу, если база недоступна
-        # Но для отладки пока оставим только лог
 
 
 # Настройка CORS для всех источников
