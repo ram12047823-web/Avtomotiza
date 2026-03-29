@@ -1,5 +1,6 @@
 import os
 import json
+import asyncio
 from typing import List, Optional
 from uuid import UUID
 from supabase import create_client, Client
@@ -16,6 +17,9 @@ class TestService:
     async def run_test(self, url: str, level: TestLevel, ai_agent_id: Optional[UUID] = None, ai_configs: List[AIConfig] = [], test_id: Optional[UUID] = None) -> TestTask:
         """Запуск теста в зависимости от уровня."""
         print(f"WORKER: Starting test for {url} (ID: {test_id})")
+        
+        # Задержка для инициализации системы
+        await asyncio.sleep(1)
         
         try:
             # 1. Если ID уже есть (создан фронтендом), просто обновляем статус
