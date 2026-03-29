@@ -16,9 +16,9 @@ class StorageClient:
             try:
                 self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
             except Exception as e:
-                print(f"Warning: Failed to initialize Supabase client in StorageClient: {e}")
+                print(f"Warning: Failed to initialize Supabase client in StorageClient: {e}", flush=True)
         else:
-            print("Warning: Supabase credentials not found in StorageClient. Storage features will be disabled.")
+            print("Warning: Supabase credentials not found in StorageClient. Storage features will be disabled.", flush=True)
 
     async def upload_media(self, local_path: str, scan_id: str) -> Optional[str]:
         """
@@ -26,12 +26,12 @@ class StorageClient:
         После успешной загрузки удаляет локальный файл.
         """
         if not self.supabase:
-            print("Supabase client not initialized in StorageClient. Skipping upload.")
+            print("Supabase client not initialized in StorageClient. Skipping upload.", flush=True)
             if os.path.exists(local_path):
                 os.remove(local_path)
             return None
         if not os.path.exists(local_path):
-            print(f"File not found: {local_path}")
+            print(f"File not found: {local_path}", flush=True)
             return None
 
         # Определение бакета по расширению
@@ -63,7 +63,7 @@ class StorageClient:
             
             return public_url
         except Exception as e:
-            print(f"Error uploading to Storage: {e}")
+            print(f"Error uploading to Storage: {e}", flush=True)
             return None
 
 storage_client = StorageClient()

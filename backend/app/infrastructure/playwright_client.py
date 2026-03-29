@@ -97,7 +97,7 @@ class PlaywrightClient:
                     })
                     
                 except Exception as e:
-                    print(f"Error testing {current_url}: {e}")
+                    print(f"Error testing {current_url}: {e}", flush=True)
                 finally:
                     await page.close()
             

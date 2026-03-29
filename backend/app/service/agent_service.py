@@ -42,7 +42,7 @@ class AgentService:
             response = query.execute()
             return [AIAgent(**item) for item in response.data]
         except Exception as e:
-            print(f"Error listing agents: {e}")
+            print(f"Error listing agents: {e}", flush=True)
             return []
 
     async def execute_agent_request(self, request: AIRequest) -> AIResponse:

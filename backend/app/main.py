@@ -10,17 +10,17 @@ supabase_url = os.getenv("SUPABASE_URL")
 if supabase_url:
     try:
         host = supabase_url.replace("https://", "").replace("http://", "").split("/")[0]
-        print(f"DNS Check: Resolving host {host}...")
+        print(f"DNS Check: Resolving host {host}...", flush=True)
         ip = socket.gethostbyname(host)
-        print(f"DNS Check: SUCCESS! {host} resolved to {ip}")
+        print(f"DNS Check: SUCCESS! {host} resolved to {ip}", flush=True)
     except socket.gaierror as e:
-        print("\n" + "!"*60)
-        print("!!! CRITICAL DNS ERROR: Name or service not known !!!")
-        print(f"!!! Cannot resolve Supabase host: {supabase_url} !!!")
-        print("!!! This usually means Leapcell cannot reach the internet or DNS is blocked !!!")
-        print("!"*60 + "\n")
+        print("\n" + "!"*60, flush=True)
+        print("!!! CRITICAL DNS ERROR: Name or service not known !!!", flush=True)
+        print(f"!!! Cannot resolve Supabase host: {supabase_url} !!!", flush=True)
+        print("!!! This usually means Leapcell cannot reach the internet or DNS is blocked !!!", flush=True)
+        print("!"*60 + "\n", flush=True)
     except Exception as e:
-        print(f"DNS Check: Unknown error: {e}")
+        print(f"DNS Check: Unknown error: {e}", flush=True)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,12 +38,12 @@ app = FastAPI(
 @app.on_event("startup")
 async def startup_event():
     """Проверка подключения к БД при запуске."""
-    print("Startup: Checking database connection...")
+    print("Startup: Checking database connection...", flush=True)
     supabase = get_supabase()
     if not supabase:
-        print("\n" + "!"*60)
-        print("!!! DATABASE CONNECTION ERROR: Supabase client not initialized !!!")
-        print("!"*60 + "\n")
+        print("\n" + "!"*60, flush=True)
+        print("!!! DATABASE CONNECTION ERROR: Supabase client not initialized !!!", flush=True)
+        print("!"*60 + "\n", flush=True)
         # Мы не выходим принудительно, чтобы дать серверу запуститься, 
         # но логи будут очень заметными.
         return
@@ -52,11 +52,11 @@ async def startup_event():
         # Пробуем сделать простой запрос к любой таблице
         # Используем .limit(1) для минимальной нагрузки
         supabase.table("ai_models").select("*").limit(1).execute()
-        print("Startup: Database connection SUCCESS!")
+        print("Startup: Database connection SUCCESS!", flush=True)
     except Exception as e:
-        print("\n" + "!"*60)
-        print(f"!!! DATABASE CONNECTION ERROR: {e} !!!")
-        print("!"*60 + "\n")
+        print("\n" + "!"*60, flush=True)
+        print(f"!!! DATABASE CONNECTION ERROR: {e} !!!", flush=True)
+        print("!"*60 + "\n", flush=True)
         # В облаке лучше упасть сразу, если база недоступна
         # Но для отладки пока оставим только лог
 
