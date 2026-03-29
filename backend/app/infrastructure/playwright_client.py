@@ -21,7 +21,7 @@ class PlaywrightClient:
                 headless=True,
                 args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-ipv6"]
             )
-            page = await browser.new_page()
+            page = await browser.new_page(ignore_https_errors=True)
             page.set_default_timeout(60000)
             
             response = await page.goto(url, wait_until="networkidle", timeout=60000)

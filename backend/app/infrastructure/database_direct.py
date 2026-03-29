@@ -2,20 +2,26 @@ import httpx
 import os
 import sys
 import socket
+import asyncio
 
 # Очистка и резолв URL
 RAW_URL = os.getenv("SUPABASE_URL", "").strip().strip('"').strip("'").rstrip("/")
 URL = RAW_URL
 KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY", "").strip().strip('"').strip("'")
 
-# Попытка ручного DNS резолва
+# Настройка транспорта с ретраями
+TRANSPORT = httpx.AsyncHTTPTransport(retries=3)
+
+# Попытка ручного DNS резолва и проверки сетевой изоляции
 if RAW_URL:
     try:
         host = RAW_URL.replace("https://", "").replace("http://", "").split("/")[0]
-        ip_address = socket.gethostbyname(host)
+        # Используем getaddrinfo для более глубокой диагностики
+        addr_info = socket.getaddrinfo(host, 443)
+        ip_address = addr_info[0][4][0]
         print(f"DNS_RESOLVE_SUCCESS: {host} -> {ip_address}", flush=True)
     except Exception as e:
-        print(f"DNS_RESOLVE_FAILED: {e}", flush=True)
+        print(f"CRITICAL_NETWORK_ISOLATION: Cannot resolve {RAW_URL}. Error: {e}", flush=True)
 
 HEADERS = {
     "apikey": KEY,
@@ -29,7 +35,7 @@ async def update_scan_status(scan_id, status):
     endpoint = f"{URL}/rest/v1/scans?id=eq.{scan_id}"
     print(f"SENDING POST TO: {URL}/rest/v1/scans (status: {status})", flush=True)
     
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=30.0, transport=TRANSPORT) as client:
         try:
             response = await client.patch(
                 endpoint,
@@ -49,7 +55,7 @@ async def get_test_status(test_id: str):
     endpoint = f"{URL}/rest/v1/scans?id=eq.{test_id}&select=status"
     print(f"SENDING POST TO: {URL}/rest/v1/scans (get_status)", flush=True)
     
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=30.0, transport=TRANSPORT) as client:
         try:
             response = await client.get(
                 endpoint,
@@ -70,7 +76,7 @@ async def list_ai_models(model_type: str = None):
     
     print(f"SENDING POST TO: {URL}/rest/v1/ai_models (list_models)", flush=True)
     
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=30.0, transport=TRANSPORT) as client:
         try:
             response = await client.get(
                 endpoint,
@@ -88,7 +94,7 @@ async def create_ai_model(data: dict):
     endpoint = f"{URL}/rest/v1/ai_models"
     print(f"SENDING POST TO: {URL}/rest/v1/ai_models (create_model)", flush=True)
     
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=30.0, transport=TRANSPORT) as client:
         try:
             response = await client.post(
                 endpoint,
@@ -115,7 +121,7 @@ async def save_test_result(test_id: str, url: str, status_code: int, issues: lis
         "video_url": video_url
     }
     
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=30.0, transport=TRANSPORT) as client:
         try:
             response = await client.post(
                 endpoint,
@@ -141,7 +147,7 @@ async def create_new_scan(url: str, level: str):
         "status": "Running"
     }
     
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=30.0, transport=TRANSPORT) as client:
         try:
             response = await client.post(
                 endpoint,

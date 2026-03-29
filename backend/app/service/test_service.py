@@ -4,17 +4,15 @@ import json
 import asyncio
 from typing import List, Optional
 from uuid import UUID
-from supabase import create_client, Client
 from ..domain.models import TestTask, TestResult, TestLevel, TestStatus, TestIssue, ModelType, AIRequest, AIConfig
 from ..infrastructure.playwright_client import playwright_client
 from ..infrastructure.storage_client import storage_client
 from ..service.agent_service import agent_service
-from ..infrastructure.supabase_client import get_supabase
 from ..infrastructure.database_direct import update_scan_status, save_test_result, create_new_scan, get_test_status
 
 class TestService:
     def __init__(self):
-        self.supabase = get_supabase()
+        pass
 
     async def run_test(self, url: str, level: TestLevel, ai_agent_id: Optional[UUID] = None, ai_configs: List[AIConfig] = [], test_id: Optional[UUID] = None) -> TestTask:
         """Запуск теста в зависимости от уровня."""

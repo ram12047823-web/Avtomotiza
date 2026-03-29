@@ -5,7 +5,9 @@ from dotenv import load_dotenv
 # Загрузка переменных окружения ДО импорта сервисов
 load_dotenv()
 
-print(f"DEBUG_ENV_URL: '{os.environ.get('SUPABASE_URL')}'")
+url_raw = os.getenv("SUPABASE_URL", "")
+print(f"DEBUG_ENV_URL: '{url_raw}'")
+print(f"DEBUG_URL_CHARS: {[ord(c) for c in url_raw]}")
 
 # Очистка переменных окружения от кавычек
 for key in ["SUPABASE_URL", "SUPABASE_KEY"]:
